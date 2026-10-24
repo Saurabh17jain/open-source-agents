@@ -414,9 +414,9 @@ def main():
     print("\n" + "=" * 70)
     print("🎉 ALL STEPS COMPLETED SUCCESSFULLY!")
     print("=" * 70)
-    print(f"📄 Top 15 JSON:         agents/oss-project-scout/top_15_repos.json")
-    print(f"📄 Summarized JSON:     agents/oss-project-scout/summarized_repos.json")
-    print(f"🌐 Navigable HTML Page: agents/oss-project-scout/report.html")
+    print("📄 Top 15 JSON:         ./top_15_repos.json")
+    print("📄 Summarized JSON:     ./summarized_repos.json")
+    print("🌐 Navigable HTML Page: ./report.html")
     print("=" * 70)
 
 

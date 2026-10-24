@@ -288,8 +288,8 @@ All six tests should pass.
 
 ### Environment Verification
 
-- **Reproducible setup**: Dependency installation in a clean environment could not be verified because this environment could not resolve PyPI.
-- **Core functionality**: Automated unit tests pass; live GitHub and Gemini workflows were not run in this network-restricted environment.
+- **Reproducible setup**: Installed `requirements.txt` in a fresh Python 3.13 virtual environment and ran the full six-test suite successfully.
+- **Core functionality**: A live GitHub search and the end-to-end metadata fallback flow completed successfully, including JSON and HTML report generation. The live Gemini API path was not exercised.
 
 ---
 
