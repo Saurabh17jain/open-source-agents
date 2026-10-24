@@ -46,5 +46,4 @@ agents/<project-slug>/
 
 | Agent Directory | Description | Framework / Stack | Contributor |
 | :--- | :--- | :--- | :--- |
-| *(None yet)* | *Contributions will appear here once approved and merged.* | —
-| — |
+| *(None yet)* | *Contributions will appear here once approved and merged.* | — | — |
