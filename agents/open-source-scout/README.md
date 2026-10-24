@@ -286,6 +286,11 @@ python -m unittest -v test_guardrails test_app_auth test_report_safety
 
 All six tests should pass.
 
+### Environment Verification
+
+- **Reproducible setup**: Dependency installation in a clean environment could not be verified because this environment could not resolve PyPI.
+- **Core functionality**: Automated unit tests pass; live GitHub and Gemini workflows were not run in this network-restricted environment.
+
 ---
 
 ## Known Limitations
