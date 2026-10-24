@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import argparse
 import getpass
+from html import escape
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -28,6 +30,16 @@ from summarizer import GeminiRepoSummarizer
 from auth import get_github_token, interactive_github_login, get_gemini_api_key
 
 
+def is_safe_github_url(value: Any) -> bool:
+    parsed = urlparse(str(value or ""))
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc.lower() == "github.com"
+        and parsed.username is None
+        and parsed.password is None
+    )
+
+
 def generate_html_report(
     repos: List[Dict[str, Any]],
     tech_stack: str,
@@ -37,30 +49,36 @@ def generate_html_report(
     """Generates a modern, responsive HTML page with navigable links and summaries."""
     cards_html = []
     for idx, r in enumerate(repos, start=1):
-        name = r.get("full_name") or r.get("name")
-        url = r.get("html_url", "#")
-        clone_url = r.get("clone_url", f"https://github.com/{name}.git")
+        raw_name = str(r.get("full_name") or r.get("name") or "Unknown repository")
+        name = escape(raw_name)
+        raw_url = str(r.get("html_url", ""))
+        url = escape(raw_url, quote=True) if is_safe_github_url(raw_url) else "#"
+        raw_clone_url = str(r.get("clone_url", f"https://github.com/{raw_name}.git"))
+        clone_url = raw_clone_url if is_safe_github_url(raw_clone_url) else ""
         stars = r.get("stars", 0)
         forks = r.get("forks", 0)
         issues = r.get("open_issues_count", 0)
-        prob = r.get("problem_statement") or r.get("description", "No description available.")
+        prob = escape(str(r.get("problem_statement") or r.get("description", "No description available.")))
         learn = r.get("what_you_will_learn", "Explore modern codebase architecture and best practices.")
         if isinstance(learn, list):
             learn = " • " + " • ".join(learn)
-        first_step = r.get("suggested_first_step", f"git clone {clone_url}")
-        first_issues_url = r.get("good_first_issues_url") or f"{url}/issues"
+        learn = escape(str(learn))
+        raw_issues_url = r.get("good_first_issues_url") or f"{raw_url}/issues"
+        first_issues_url = escape(str(raw_issues_url), quote=True) if is_safe_github_url(raw_issues_url) else "#"
+        clone_command = escape(f"git clone {clone_url}" if clone_url else "git clone", quote=True)
+        clone_display = escape(f"git clone {clone_url}" if clone_url else "Clone URL unavailable")
         guardrail_badge = '<span class="badge verified">🛡️ Guardrail Verified</span>'
         rank_val = r.get("rank") or idx
 
-        health_badge = r.get("health_badge", "🟢 Healthy")
-        resp_badge = r.get("maintainer_responsiveness", "⚡ Active Reviews")
+        health_badge = escape(str(r.get("health_badge", "🟢 Healthy")))
+        resp_badge = escape(str(r.get("maintainer_responsiveness", "⚡ Active Reviews")))
 
         card = f"""
         <div class="repo-card">
             <div class="card-header">
                 <div>
                     <span class="rank-tag">#{rank_val}</span>
-                    <a href="{url}" target="_blank" class="repo-title">{name}</a>
+                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="repo-title">{name}</a>
                 </div>
                 {guardrail_badge}
             </div>
@@ -82,11 +100,11 @@ def generate_html_report(
                 <p>{learn}</p>
             </div>
             <div class="action-footer">
-                <a href="{url}" target="_blank" class="btn btn-primary">Open on GitHub ↗</a>
-                <a href="{first_issues_url}" target="_blank" class="btn btn-secondary">Good First Issues ↗</a>
-                <code class="clone-box" onclick="navigator.clipboard.writeText('git clone {clone_url}')" title="Click to copy clone command">
-                    git clone {clone_url}
-                </code>
+                <a href="{url}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Open on GitHub ↗</a>
+                <a href="{first_issues_url}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">Good First Issues ↗</a>
+                <button type="button" class="clone-box" data-clone-command="{clone_command}" title="Click to copy clone command">
+                    {clone_display}
+                </button>
             </div>
         </div>
         """
@@ -97,7 +115,7 @@ def generate_html_report(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Source Scout: Top 15 {tech_stack.capitalize()} Repositories ({complexity.capitalize()})</title>
+    <title>Open Source Scout: Top 15 {escape(tech_stack.capitalize())} Repositories ({escape(complexity.capitalize())})</title>
     <style>
         :root {{
             --bg-color: #0f172a;
@@ -241,13 +259,20 @@ def generate_html_report(
 <body>
     <div class="container">
         <header>
-            <h1>🧭 Top 15 {tech_stack.capitalize()} Open-Source Projects</h1>
-            <p class="subtitle">Target Complexity: <strong>{complexity.capitalize()}</strong> | Curated & Summarized via GitHub API + Gemini</p>
+            <h1>🧭 Top 15 {escape(tech_stack.capitalize())} Open-Source Projects</h1>
+            <p class="subtitle">Target Complexity: <strong>{escape(complexity.capitalize())}</strong> | Curated & Summarized via GitHub API + Gemini</p>
         </header>
         <main>
             {''.join(cards_html)}
         </main>
     </div>
+    <script>
+        document.querySelectorAll("[data-clone-command]").forEach((button) => {{
+            button.addEventListener("click", () => {{
+                navigator.clipboard.writeText(button.dataset.cloneCommand || "");
+            }});
+        }});
+    </script>
 </body>
 </html>"""
     with open(output_path, "w", encoding="utf-8") as f:

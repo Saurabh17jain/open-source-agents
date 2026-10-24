@@ -46,4 +46,4 @@ agents/<project-slug>/
 
 | Agent Directory | Description | Framework / Stack | Contributor |
 | :--- | :--- | :--- | :--- |
-| *(None yet)* | *Contributions will appear here once approved and merged.* | — | — |
+| [`open-source-scout`](open-source-scout/) | Curates, scores health/responsiveness, and summarizes top 15 open-source repos with anti-hallucination guardrails and direct forking | Python, GitHub API, Gemini | [@Saurabh17jain](https://github.com/Saurabh17jain) |

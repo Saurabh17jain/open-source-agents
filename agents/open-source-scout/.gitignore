@@ -19,6 +19,9 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+report.html
+top_15_repos.json
+summarized_repos.json
 
 # Node.js / TypeScript
 node_modules/

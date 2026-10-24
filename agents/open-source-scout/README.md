@@ -79,12 +79,13 @@
 ## Prerequisites & Authentication
 
 - Python 3.10 or higher.
+- A modern web browser for the optional local dashboard.
 - **Explicit GitHub Login**:
   - The web dashboard starts as `Not Logged In` by default.
   - Clicking `🔑 Log in with GitHub` allows signing in via your Personal Access Token.
   - Once logged in, you can fork any project directly to your account with 1 click, or click `Log out` to switch accounts.
 - **Gemini API Key**:
-  - Automatically read from `agents/open-source-scout/.env` (no key prompts in the UI).
+  - Optional. Read from the environment or `.env`; metadata-only summaries are used when it is not configured.
 
 ---
 
@@ -182,6 +183,9 @@ deactivate
 | :--- | :--- | :--- | :--- |
 | `GITHUB_TOKEN` | No | *None* | GitHub Personal Access Token (PAT) for authenticated search |
 | `GEMINI_API_KEY` | No | *None* | Google Gemini API key for generating problem summaries |
+| `FLASK_SECRET_KEY` | No | Random per process | Stable random Flask signing key; set explicitly for deployments |
+| `HOST` | No | `127.0.0.1` | Bind address; keep local unless deployment networking is secured |
+| `PORT` | No | `5050` | Local dashboard port |
 | `DEFAULT_TECH_STACK` | No | `python` | Default programming language or framework keyword |
 | `DEFAULT_COMPLEXITY` | No | `beginner` | Default difficulty level (`beginner`, `intermediate`, `advanced`) |
 | `TOP_N_REPOS` | No | `15` | Number of repositories to fetch and rank |
@@ -194,14 +198,14 @@ deactivate
 > Ensure your virtual environment is active (`source .venv/bin/activate` on macOS/Linux or `.venv\Scripts\activate` on Windows) before running these commands.
 
 ### 🌟 Option 1: Web Frontend (Recommended)
-Launch the interactive web UI with dropdowns for Tech Stack, Complexity Level, and AI Model selection:
+Launch the interactive web UI to search GitHub by tech stack, contributor level, and contribution scope:
 ```bash
 python3 app.py
 ```
 Open **[http://localhost:5050](http://localhost:5050)** in your browser. 
 - Features dropdowns for all popular languages and frameworks.
-- Allows switching between **Gemini 2.5 Flash**, **Gemini 1.5 Pro**, or **Fast Engine (0 API Key Required)**.
-- Shows live GitHub login status (`@Saurabh17jain`).
+- Uses Gemini summaries when `GEMINI_API_KEY` is configured; otherwise it uses repository metadata.
+- Shows the signed-in GitHub account and its public issue and pull request activity.
 - Includes 1-click `git clone` copy buttons and instant links to Good First Issues.
 
 ---
@@ -215,7 +219,7 @@ python3 main.py --tech-stack python --complexity beginner --step 1
 
 ### 2. Full Pipeline with Gemini Summarization (Steps 1, 2 & 3)
 ```bash
-python3 main.py --tech-stack typescript --complexity intermediate --gemini-api-key "AIzaSy..."
+python3 main.py --tech-stack typescript --complexity intermediate
 ```
 
 ### 3. Full Pipeline without LLM (Fast Mode using GitHub descriptions)
@@ -274,37 +278,39 @@ The agent produces a responsive web dashboard with:
 
 ## How to Test
 
-Run the automated test suite verifying guardrail protection and anti-hallucination controls:
+Run the automated suite for guardrails, GitHub credential handling, and report rendering:
 
 ```bash
-python3 test_guardrails.py
+python -m unittest -v test_guardrails test_app_auth test_report_safety
 ```
 
-Expected output:
-```text
-[GUARDRAIL VIOLATION BLOCKED] Rejected unverified repository: fake-author/fake-nonexistent-repo
-.[GUARDRAIL VIOLATION BLOCKED] Rejected unverified repository: random/hallucinated-tool
-..
-----------------------------------------------------------------------
-Ran 3 tests in 0.000s
+All six tests should pass.
 
-OK
-```
+---
+
+## Known Limitations
+
+- GitHub API rate limits apply, especially when searching without a token.
+- GitHub login sessions are held in process memory. Restarting the app signs users out, and multi-process deployments need a shared server-side session store.
+- The repository whitelist verifies repository identity, not the factual accuracy of Gemini-generated summaries.
+- Gemini summaries require a configured API key and may incur provider usage costs.
 
 ---
 
 ## Security & Privacy Considerations
 
 - **Anti-Hallucination Guardrails**: Step 3 enforces a strict in-memory whitelist created from authentic GitHub API results. If the LLM generates any repository not present in the pre-verified dataset, it is immediately blocked.
-- **Zero Committed Secrets**: `.env` is ignored by `.gitignore`. Only `.env.example` with sanitized placeholders is committed.
-- **Safe Link Formatting**: All URLs are validated against `https://github.com/<owner>/<repo>` format to prevent phishing or arbitrary redirects.
+- **Token Handling**: GitHub tokens remain in server memory; the browser cookie contains only a random session identifier. Sessions are cleared on logout or process restart.
+- **Zero Committed Secrets**: `.env`, virtual environments, and generated reports are ignored. Only `.env.example` with placeholders is committed.
+- **Report Rendering**: External repository text is HTML-escaped, and generated report links are restricted to HTTPS URLs on `github.com`.
+- **Local Binding**: The dashboard listens on `127.0.0.1` by default. Set a stable random `FLASK_SECRET_KEY` and use secured HTTPS networking before exposing it beyond the local machine.
 
 ---
 
 ## Future Improvements
 
 - [ ] Support GitHub GraphQL API for batch metrics (e.g. contributor count and PR merge velocity).
-- [ ] Add direct 1-click fork and branch creation using user GitHub token.
+- [ ] Add configurable session expiration and a shared session store for multi-process deployments.
 - [ ] Add email or Discord notification digest for newly trending starter repos.
 
 ---

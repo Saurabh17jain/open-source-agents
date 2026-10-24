@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import sys
 from pathlib import Path
+from typing import Optional
 from flask import Flask, jsonify, render_template, request, send_file, session
 import requests
 
@@ -31,8 +33,15 @@ from guardrails import RepoGuardrail, GuardrailViolationError
 from summarizer import GeminiRepoSummarizer
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "open-source-scout-session-secret-2026")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 AGENT_DIR = Path(__file__).parent
+github_sessions: dict[str, tuple[str, str]] = {}
+
+
+def get_authenticated_github_credentials() -> tuple[Optional[str], Optional[str]]:
+    session_id = session.get("github_session_id")
+    return github_sessions.get(session_id, (None, None))
 
 
 @app.route("/")
@@ -44,8 +53,7 @@ def index():
 @app.route("/api/status", methods=["GET"])
 def get_status():
     """Returns current session login status."""
-    session_user = session.get("github_user")
-    session_token = session.get("github_token")
+    session_token, session_user = get_authenticated_github_credentials()
 
     saved_gemini = os.getenv("GEMINI_API_KEY") or get_stored_env_value("GEMINI_API_KEY")
     has_gemini = bool(saved_gemini and not saved_gemini.startswith("your_"))
@@ -93,24 +101,28 @@ def login():
     if not verified_user:
         return jsonify({"error": "Invalid GitHub token. Please verify token permissions and try again."}), 401
 
-    session["github_token"] = raw_token
-    session["github_user"] = verified_user
+    old_session_id = session.get("github_session_id")
+    if old_session_id:
+        github_sessions.pop(old_session_id, None)
+    session_id = secrets.token_urlsafe(32)
+    github_sessions[session_id] = (raw_token, verified_user)
+    session["github_session_id"] = session_id
     return jsonify({"success": True, "username": verified_user})
 
 
 @app.route("/api/logout", methods=["POST"])
 def logout():
     """Logs out the user by clearing session credentials."""
-    session.pop("github_token", None)
-    session.pop("github_user", None)
+    session_id = session.pop("github_session_id", None)
+    if session_id:
+        github_sessions.pop(session_id, None)
     return jsonify({"success": True})
 
 
 @app.route("/api/user/activity", methods=["GET"])
 def user_activity():
     """Fetches signed-in user's public GitHub Issue and Pull Request contribution history."""
-    token = session.get("github_token")
-    username = session.get("github_user")
+    token, username = get_authenticated_github_credentials()
 
     if not token or not username:
         return jsonify({"error": "You must be signed in to view your GitHub activity."}), 401
@@ -233,7 +245,7 @@ def scout():
             "complexity": complexity,
             "contribution_type": contribution_type,
             "count": len(summarized_repos),
-            "engine": "Gemini 3.5 Flash" if gemini_key else "Heuristic"
+            "engine": "Gemini" if gemini_key else "Heuristic"
         },
         "repositories": summarized_repos
     })
@@ -247,8 +259,7 @@ def fork_repo():
     if not repo_full_name:
         return jsonify({"error": "Missing repository full name"}), 400
 
-    token = session.get("github_token")
-    username = session.get("github_user")
+    token, username = get_authenticated_github_credentials()
 
     if not token or not username:
         return jsonify({
@@ -297,10 +308,11 @@ def download_file(file_type):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
+    host = os.environ.get("HOST", "127.0.0.1")
     print("\n" + "=" * 65)
     print("      🧭 OPEN SOURCE SCOUT - WEB FRONTEND")
     print("=" * 65)
     print(f"🚀 Server running at: http://localhost:{port}")
     print(f"👉 Open in browser:  open http://localhost:{port}")
     print("=" * 65 + "\n")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host=host, port=port, debug=False)
